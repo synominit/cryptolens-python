@@ -1,5 +1,9 @@
 # Cryptolens Client API for Python
 
+[![Downloads](https://pepy.tech/badge/licensing)](https://pepy.tech/project/licensing)
+[![Downloads](https://pepy.tech/badge/licensing/month)](https://pepy.tech/project/licensing)
+[![Downloads](https://pepy.tech/badge/licensing/week)](https://pepy.tech/project/licensing)
+
 This library contains helper methods to verify license keys in Python.
 
 Python docs can be found here: https://help.cryptolens.io/api/python/
@@ -27,7 +31,7 @@ from cryptolens_python2 import *
 
 If you create a plugin for Autodesk Revit or use IronPython 2.7.3 or earlier, please also add the line below right after the import:
 
-```
+```python
 HelperMethods.ironpython2730_legacy = True
 ```
 
@@ -61,9 +65,9 @@ result = Key.activate(token=auth,\
                    rsa_pub_key=RSAPubKey,\
                    product_id=3349, \
                    key="ICVLD-VVSZR-ZTICT-YKGXL",\
-                   machine_code=Helpers.GetMachineCode())
+                   machine_code=Helpers.GetMachineCode(v=2))
 
-if result[0] == None or not Helpers.IsOnRightMachine(result[0]):
+if result[0] == None or not Helpers.IsOnRightMachine(result[0], v=2):
     # an error occurred or the key is invalid or it cannot be activated
     # (eg. the limit of activated devices was achieved)
     print("The license does not work: {0}".format(result[1]))
@@ -102,7 +106,7 @@ When loading it back, we can use the code below:
 with open('licensefile.skm', 'r') as f:
     license_key = LicenseKey.load_from_string(pubKey, f.read())
     
-    if license_key == None or not Helpers.IsOnRightMachine(license_key):
+    if license_key == None or not Helpers.IsOnRightMachine(license_key, v=2):
         print("NOTE: This license file does not belong to this machine.")
     else:
         print("Feature 1: " + str(license_key.f1))
@@ -116,7 +120,7 @@ If you want to make sure that the license file is not too old, you can specify t
 with open('licensefile.skm', 'r') as f:
     license_key = LicenseKey.load_from_string(pubKey, f.read(), 30)
     
-    if license_key == None or not Helpers.IsOnRightMachine(license_key):
+    if license_key == None or not Helpers.IsOnRightMachine(license_key, v=2):
         print("NOTE: This license file does not belong to this machine.")
     else:
         print("Feature 1: " + str(license_key.f1))
@@ -139,11 +143,11 @@ result = Key.activate(token=auth,\
                    rsa_pub_key=RSAPubKey,\
                    product_id=3349, \
                    key="ICVLD-VVSZR-ZTICT-YKGXL",\
-                   machine_code=Helpers.GetMachineCode(),\
+                   machine_code=Helpers.GetMachineCode(v=2),\
                    floating_time_interval=300,\
                    max_overdraft=1)
 
-if result[0] == None or not Helpers.IsOnRightMachine(res[0], is_floating_license=True, allow_overdraft=True):
+if result[0] == None or not Helpers.IsOnRightMachine(res[0], is_floating_license=True, allow_overdraft=True, v=2):
     print("An error occurred: {0}".format(result[1]))
 else:
     print("Success")
@@ -171,7 +175,7 @@ The code below shows how to create trial key. If the trial key is successful, `t
 from licensing.models import *
 from licensing.methods import Key, Helpers
 
-trial_key = Key.create_trial_key("WyIzODQ0IiwiempTRWs4SnBKTTArYUh3WkwyZ0VwQkVyeTlUVkRWK2ZTOS8wcTBmaCJd", 3941, Helpers.GetMachineCode())
+trial_key = Key.create_trial_key("WyIzODQ0IiwiempTRWs4SnBKTTArYUh3WkwyZ0VwQkVyeTlUVkRWK2ZTOS8wcTBmaCJd", 3941, Helpers.GetMachineCode(v=2))
 
 if trial_key[0] == None:
     print("An error occurred: {0}".format(trial_key[1]))
@@ -184,10 +188,10 @@ result = Key.activate(token=auth,\
                    rsa_pub_key=RSAPubKey,\
                    product_id=3349, \
                    key=trial_key[0],\
-                   machine_code=Helpers.GetMachineCode())
+                   machine_code=Helpers.GetMachineCode(v=2))
 
 
-if result[0] == None or not Helpers.IsOnRightMachine(result[0]):
+if result[0] == None or not Helpers.IsOnRightMachine(result[0], v=2):
     print("An error occurred: {0}".format(result[1]))
 else:
     print("Success")
@@ -196,3 +200,33 @@ else:
     print("Feature 1: " + str(license_key.f1))
     print("License expires: " + str(license_key.expires))
 ```
+
+### License server or custom endpoint
+
+To forward requests to a local license server or a different API, you can set it using the `server_address` in HelperMethods, i.e.,
+
+```python
+HelperMethods.server_address = "http://localhost:8080/api/";
+```
+It is important to include one */* in the end of the address as well as to attach the "api" suffix.
+
+### Other settings
+
+#### Proxy
+
+If you have customers who want to use a proxy server, we recommend enabling the following setting before calling any other API method, such as Key.Activate.
+
+```python
+HelperMethods.proxy_experimental = True
+```
+
+This will ensure that the underlying HTTP library (urllib) used by Cryptolens Python SDK will use the proxy configured on the OS level. The goal is to make this default behaviour in future versions of the library, once enough feedback is collected.
+
+#### SSL verification
+SSL verification can temporarily be disabled by adding the line below before any call to Key.Activate.
+
+```python
+HelperMethods.verify_SSL = False
+```
+
+The Cryptolens Python SDK will verify that the license information has not changed since it left the server using your RSA Public Key. However, we recommend to keep this value unchanged.

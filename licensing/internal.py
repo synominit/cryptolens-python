@@ -33,9 +33,11 @@ def subprocess_args(include_stdout=True):
 
 class HelperMethods:
     
-    server_address = "https://app.cryptolens.io/api/"
+    server_address = "https://api.cryptolens.io/api/"
     
     verify_SSL = True
+    
+    proxy_experimental = False
     
     @staticmethod
     def get_SHA256(string):
@@ -125,9 +127,23 @@ class HelperMethods:
         """
         
         if HelperMethods.verify_SSL:
-            return urllib.request.urlopen(HelperMethods.server_address + method, \
+            req = urllib.request.Request(HelperMethods.server_address + method, \
                                       urllib.parse.urlencode(params)\
-                                      .encode("utf-8")).read().decode("utf-8")
+                                      .encode("utf-8"))
+            
+            if HelperMethods.proxy_experimental == True:
+                proxies = urllib.request.getproxies()
+                if proxies != {}:
+                    
+                    if 'http' in proxies:
+                        req.set_proxy(proxies['http'], 'http')
+                    
+                    if 'https' in proxies:
+                        req.set_proxy(proxies['https'], 'https')
+                    
+            else:
+                return urllib.request.urlopen(req).read().decode("utf-8")    
+            
         else:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -137,7 +153,18 @@ class HelperMethods:
                                       urllib.parse.urlencode(params)\
                                       .encode("utf-8"), context=ctx).read().decode("utf-8")
             
-            
+    @staticmethod
+    def start_process_ps_v2():
+        ps_args = "-Command (Get-CimInstance -Class Win32_ComputerSystemProduct).UUID"
+        
+        cmd = ["powershell", *ps_args.split(" ")]  
+        
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        out, err = proc.communicate(timeout=120)
+        
+        rawOutput = out.decode('utf-8').strip()
+        return rawOutput
+        
         
     @staticmethod 
     def start_process(command, v = 1):

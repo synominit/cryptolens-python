@@ -301,6 +301,41 @@ class Key:
         return (True, jobj["message"])
     
     @staticmethod
+    def change_customer(token, product_id, key, customer_id):
+        """
+        This method will change the customer associated with a license.
+        If the customer is not specified (for example, if CustomerId=0) or
+        the customer with the provided ID does not exist, any customer that
+        was previously associated with the license will be dissociated.
+        
+        More docs: https://app.cryptolens.io/docs/api/v3/ChangeCustomer
+        """
+        
+        response = ""
+        
+        try:
+            response = HelperMethods.send_request("key/ChangeCustomer", {"token":token,\
+                                                  "ProductId":product_id,\
+                                                  "Key" : key,\
+                                                  "CustomerId" : customer_id})
+        except HTTPError as e:
+            response = e.read()
+        except URLError as e:
+            return (None, "Could not contact the server. Error message: " + str(e))
+        except Exception:
+            return (None, "Could not contact the server.")
+        
+        jobj = json.loads(response)
+
+        if jobj == None or not("result" in jobj) or jobj["result"] == 1:
+            if jobj != None:
+                return (False, jobj["message"])
+            else:
+               return (False, "Could not contact the server.")
+           
+        return (True, jobj["message"])
+    
+    @staticmethod
     def unblock_key(token, product_id, key):
         """
         This method will unblock a specific license key to ensure that it can
@@ -613,6 +648,45 @@ class Product:
 
         return (jobj["products"], "")
     
+    @staticmethod
+    def get_keys(token, product_id, page = 1, order_by="ID ascending", search_query=""):
+        
+        """
+        This method will return a list of keys for a given product.
+        Please keep in mind that although each license key will be
+        of the License Key type, the fields related to signing operations
+        will be left empty. Instead, if you want to get a signed license key
+        (for example, to achieve offline key activation), please use the
+        Activation method instead.
+        
+        More docs: https://app.cryptolens.io/docs/api/v3/GetKeys
+        """
+        
+        try:
+            response = HelperMethods.send_request("/product/getkeys/",\
+                                                  {"token":token,\
+                                                   "ProductId" : product_id,\
+                                                   "Page" : page,\
+                                                   "OrderBy" : order_by,\
+                                                   "SearchQuery" : search_query\
+                                                   })
+        except HTTPError as e:
+            response = e.read()
+        except URLError as e:
+            return (None, "Could not contact the server. Error message: " + str(e))
+        except Exception:
+            return (None, "Could not contact the server.")
+
+        jobj = json.loads(response)
+
+        if jobj == None or not("result" in jobj) or jobj["result"] == 1:
+            if jobj != None:
+                return (None, jobj["message"])
+            else:
+               return (None, "Could not contact the server.")
+
+        return (jobj["licenseKeys"], "")
+    
     
 class Customer:
     
@@ -698,7 +772,47 @@ class Data:
                return (None, "Could not contact the server.")
 
         return (jobj, "")
-    
+
+    @staticmethod
+    def decrement_int_value_to_key(token, product_id, key, object_id,\
+                                   int_value=0, enable_bound=False, bound=0):
+        
+        """
+        This method will decrement the int value of a data object associated with a license key.
+        
+        When creating an access token to this method, remember to include "DecrementIntValue" permission and 
+        set the "Lock to key" value to -1.
+        
+        More docs: https://app.cryptolens.io/docs/api/v3/DecrementIntValue (see parameters under Method 2)
+        """
+        
+        try:
+            response = HelperMethods.send_request("/data/DecrementIntValueToKey/",\
+                                                  {"token":token,\
+                                                   "ProductId" : product_id,\
+                                                   "Key" : key,\
+                                                   "Id" : object_id,\
+                                                   "IntValue": int_value ,\
+                                                   "EnableBound": str(enable_bound),\
+                                                   "Bound" : bound
+                                                   })
+        except HTTPError as e:
+            response = e.read()
+        except URLError as e:
+            return (None, "Could not contact the server. Error message: " + str(e))
+        except Exception:
+            return (None, "Could not contact the server.")
+
+        jobj = json.loads(response)
+
+        if jobj == None or not("result" in jobj) or jobj["result"] == 1:
+            if jobj != None:
+                return (None, jobj["message"])
+            else:
+               return (None, "Could not contact the server.")
+
+        return (jobj, "")
+
     @staticmethod
     def add_data_object_to_key(token, product_id, key, name = "", string_value="",\
                                    int_value=0, check_for_duplicates=False):
@@ -967,17 +1081,47 @@ class Helpers:
         """
         Get a unique identifier for this device. If you want the machine code to be the same in .NET on Windows, you
         can set v=2. More information is available here: https://help.cryptolens.io/faq/index#machine-code-generation
+        
+        Note: if we are unable to compute the machine code, None will be returned. Please make sure
+        to check this in production code.
         """
         
         if "windows" in platform.platform().lower():
-            return HelperMethods.get_SHA256(HelperMethods.start_process(["cmd.exe", "/C", "wmic","csproduct", "get", "uuid"],v))
+            
+            seed = ""
+            
+            if v==2:
+                seed = HelperMethods.start_process_ps_v2()
+            else:
+                seed = HelperMethods.start_process(["cmd.exe", "/C", "wmic","csproduct", "get", "uuid"],v)
+                
+            if seed == "":
+                return None
+            else:
+                return HelperMethods.get_SHA256(seed)
+            
+            
         elif "mac" in platform.platform().lower() or "darwin" in platform.platform().lower():               
             res = HelperMethods.start_process(["system_profiler","SPHardwareDataType"])
-            return HelperMethods.get_SHA256(res[res.index("UUID"):].strip())
+            seed = res[res.index("UUID"):].strip()
+            
+            if seed == "":
+                return None
+            else:
+                return HelperMethods.get_SHA256(seed)
+            
         elif "linux" in platform.platform().lower() :
-            return HelperMethods.get_SHA256(HelperMethods.compute_machine_code())
+            seed = HelperMethods.compute_machine_code()
+            if seed == "":
+                return None
+            else:
+                return HelperMethods.get_SHA256(seed)
         else:
-            return HelperMethods.get_SHA256(HelperMethods.compute_machine_code())
+            seed = HelperMethods.compute_machine_code()
+            if seed == "":
+                return None
+            else:
+                return HelperMethods.get_SHA256(seed)
     
     @staticmethod
     def IsOnRightMachine(license_key, is_floating_license = False, allow_overdraft=False, v = 1, custom_machine_code = None):
@@ -1052,6 +1196,9 @@ class Helpers:
                 features = dobj["StringValue"]
                 break
             
+        if features == None or features.strip() == "":
+            return False
+    
         array = json.loads(features)
             
         feature_path = feature_name.split(".")
